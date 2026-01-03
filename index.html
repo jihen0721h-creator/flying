@@ -3,52 +3,58 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>起飞打卡企划 · 记录管理版</title>
+  <title>起飞打卡企划 </title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --primary: #007bff; --bg: #f4f7f6; --success: #28a745; --gold: #ffd700; --danger: #dc3545; }
-    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #333; }
+    :root { --primary: #007bff; --bg: #f4f7f6; --success: #28a745; --gold: #ffd700; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
     .container { max-width: 500px; margin: 0 auto; }
     .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 15px; }
     h1, h2, h3 { margin-top: 0; text-align: center; }
-    input, select, button { width: 100%; padding: 12px; margin-top: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    input, select, button { width: 100%; padding: 12px; margin-top: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
     button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
-    button:disabled { background: #ccc; cursor: not-allowed; }
-    
+    button:disabled { background: #ccc; }
+
+    /* 导航 */
     .nav { display: flex; gap: 5px; margin-bottom: 15px; }
     .nav button { flex: 1; background: #eee; color: #666; font-size: 13px; padding: 10px 5px; }
     .nav button.active { background: var(--primary); color: white; }
 
+    /* 分类过滤器 */
+    .filter-bar { display: flex; gap: 5px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 10px; }
+    .filter-bar span { padding: 6px 15px; background: #fff; border: 1px solid #ddd; border-radius: 20px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+    .filter-bar span.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+    /* 排行榜 */
     .rank-item { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
-    
-    /* 统计页增强 */
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
-    .cal-day { aspect-ratio: 1/1; background: #eee; border-radius: 4px; font-size: 10px; display: flex; align-items: center; justify-content: center; color: #999; }
+    .rank-item:hover { background: #f0f7ff; }
+
+    /* 日历网格 */
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
+    .cal-day { aspect-ratio: 1/1; background: #eee; border-radius: 4px; font-size: 10px; display: flex; align-items: center; justify-content: center; color: #999; position: relative; }
     .cal-day.active { background: var(--success); color: white; font-weight: bold; }
+    .cal-day.active::after { content: ''; width: 4px; height: 4px; background: white; border-radius: 50%; position: absolute; bottom: 3px; }
 
-    /* 记录明细列表 */
-    .record-detail-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
-    .del-rec-btn { background: none; color: var(--danger); border: 1px solid var(--danger); width: auto; padding: 2px 8px; font-size: 11px; margin-top: 0; }
-    .del-rec-btn:hover { background: var(--danger); color: white; }
+    /* 历史月份选择器 */
+    .month-picker { display: flex; gap: 8px; overflow-x: auto; padding: 10px 0; }
+    .month-chip { padding: 8px 12px; background: #f8f9fa; border: 1px solid #eee; border-radius: 8px; font-size: 12px; cursor: pointer; white-space: nowrap; text-align: center; }
+    .month-chip.active { border-color: var(--primary); color: var(--primary); background: #e7f1ff; }
 
-    .achievement-item { display: flex; align-items: center; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #eee; font-size: 14px; }
-    .achievement-item.unlocked { background: #fffde7; border-color: var(--gold); }
+    .record-item { display: flex; justify-content: space-between; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 5px; font-size: 13px; }
     .hidden { display: none !important; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <!-- 登录框 -->
   <div id="loginSection" class="card">
     <h1>🚀 起飞打卡</h1>
     <input id="username" placeholder="账号" />
     <input id="password" type="password" placeholder="密码" />
-    <input id="nickname" placeholder="昵称 (仅注册需填)" />
-    <button id="loginBtn">登录/进入企划</button>
+    <input id="nickname" placeholder="昵称 (仅注册)" />
+    <button id="loginBtn">登录 / 注册</button>
   </div>
 
-  <!-- 主界面 -->
   <div id="mainSection" class="hidden">
     <div class="nav">
       <button onclick="showPage('checkin')" id="nav-checkin" class="active">打卡</button>
@@ -59,53 +65,52 @@
 
     <!-- 打卡页 -->
     <div id="page-checkin" class="page card">
-      <h2 style="font-size: 18px;">你好, <span id="displayNickname"></span></h2>
+      <h2>早安, <span id="displayNickname"></span></h2>
       <select id="categorySelect">
         <option value="真人">三次元 🎬</option>
         <option value="本子">本子 📖</option>
-        <option value="视频">鬼脑这一块 🧠</option>
+        <option value="鬼脑">鬼脑 🧠</option>
       </select>
       <input type="date" id="checkInDate">
       <button id="checkInBtn" style="margin-top:20px;">确认打卡 🚀</button>
-      <div id="annoBox" style="margin-top:20px; font-size:12px; color:#888;"></div>
-    </div>
-
-    <!-- 资料详情页 -->
-    <div id="page-profile" class="page card hidden">
-      <button onclick="showPage('rank')" style="background:#666; width:70px; font-size:12px; margin-bottom:10px;">← 返回</button>
-      <h2 id="profName" style="font-size: 18px;">资料详情</h2>
-      
-      <!-- 汇总 -->
-      <div id="profSummary" style="background:#e7f1ff; padding:15px; border-radius:10px; margin-bottom:15px;">
-        <strong>累计起飞：<span id="profTotalCount">0</span> 次</strong>
-        <div id="profCategoryStats" style="font-size:12px; margin-top:5px; color:#555;"></div>
-      </div>
-
-      <h4 id="calendarTitle">月份分布</h4>
-      <div id="calendar" class="calendar-grid"></div>
-
-      <h4 style="margin-top:20px;">打卡明细</h4>
-      <div id="recordList"></div>
+      <div id="annoBox" style="margin-top:15px; font-size:12px; color:#999;"></div>
     </div>
 
     <!-- 榜单页 -->
     <div id="page-rank" class="page card hidden">
-      <h3>排行榜 (点击头像查看)</h3>
+      <h3>飞行排行榜</h3>
+      <div class="filter-bar" id="rankFilter">
+        <span class="active" onclick="changeRankType('Total', this)">总榜单</span>
+        <span onclick="changeRankType('真人', this)">三次元榜</span>
+        <span onclick="changeRankType('本子', this)">本子榜</span>
+        <span onclick="changeRankType('鬼脑''鬼脑''n'">鬼脑榜</span>
+      </div>
       <div id="rankList"></div>
     </div>
 
-    <!-- 成就页 -->
-    <div id="page-me" class="page card hidden">
-      <h2>成就墙</h2>
-      <div id="achievementsBox"></div>
-      <button onclick="logout()" style="background:#666; margin-top:20px; font-size:12px;">退出登录</button>
+    <!-- 详情页 -->
+    <div id="page-profile" class="page card hidden">
+      <button onclick="showPage('rank')" style="background:#666; width:70px; font-size:12px; margin-bottom:10px;">← 返回</button>
+      <h2 id="profName">用户日志</h2>
+      
+      <div id="profStats" style="background:#f0f7ff; padding:15px; border-radius:10px; margin-bottom:15px; font-size:14px;">
+        <div style="display:flex; justify-content:space-between;"><span>累计总次数：</span><b id="profTotalCount">0</b></div>
+        <div id="profCatBreakdown" style="margin-top:5px; color:#555; font-size:12px;"></div>
+      </div>
+
+      <h4 id="calTitle">月份分布</h4>
+      <div id="calendar" class="calendar-grid"></div>
+
+      <h4>选择月份</h4>
+      <div id="monthPicker" class="month-picker"></div>
+
+      <h4 style="margin-top:20px;">记录明细</h4>
+      <div id="detailList"></div>
     </div>
 
-    <!-- 管理页 -->
-    <div id="page-admin" class="page card hidden">
-      <h2>管理中心</h2>
-      <div id="adminUserList"></div>
-    </div>
+    <!-- 成就/管理 -->
+    <div id="page-me" class="page card hidden"><div id="achievementsBox"></div><button onclick="logout()" style="background:#666; margin-top:20px;">退出登录</button></div>
+    <div id="page-admin" class="page card hidden"><div id="adminUserList"></div></div>
   </div>
 </div>
 
@@ -115,25 +120,27 @@
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   let currentUser = null;
-  let viewingUserId = null;
+  let viewingRecords = [];
+  let currentRankCategory = 'Total';
 
-  // 1. 登录
+  // 1. 登录注册
   async function login() {
-    const userVal = document.getElementById('username').value.trim();
-    const passVal = document.getElementById('password').value.trim();
-    const nickVal = document.getElementById('nickname').value.trim();
-    if (!userVal || !passVal) return alert('必填');
-    try {
-      let { data: user } = await supabaseClient.from('users').select('*').eq('username', userVal).maybeSingle();
-      if (!user) {
-        if (!nickVal) return alert('新用户需填昵称');
-        const { data: nu, error: e } = await supabaseClient.from('users').insert([{username: userVal, password: passVal, nickname: nickVal}]).select().single();
-        if(e) throw e; user = nu;
-      } else if (user.password !== passVal) return alert('密码错误');
-      currentUser = user;
-      localStorage.setItem('qifei_user', JSON.stringify(user));
-      initApp();
-    } catch(e){ alert(e.message); }
+    const u = document.getElementById('username').value.trim();
+    const p = document.getElementById('password').value.trim();
+    const n = document.getElementById('nickname').value.trim();
+    if(!u || !p) return alert('请填全账号密码');
+    
+    let { data: user } = await supabaseClient.from('users').select('*').eq('username', u).maybeSingle();
+    if(!user) {
+      if(!n) return alert('新用户请填昵称');
+      const { data: nu, error } = await supabaseClient.from('users').insert([{username:u, password:p, nickname:n}]).select().single();
+      if(error) return alert(error.message);
+      user = nu;
+    } else if(user.password !== p) return alert('密码错误');
+
+    currentUser = user;
+    localStorage.setItem('qifei_user', JSON.stringify(user));
+    initApp();
   }
 
   function initApp() {
@@ -141,80 +148,26 @@
     document.getElementById('mainSection').classList.remove('hidden');
     document.getElementById('displayNickname').innerText = currentUser.nickname;
     document.getElementById('checkInDate').value = new Date().toISOString().split('T')[0];
-    if (currentUser.role === 'admin') document.getElementById('nav-admin').classList.remove('hidden');
+    if(currentUser.role === 'admin') document.getElementById('nav-admin').classList.remove('hidden');
     loadRank();
     loadAllData();
   }
 
-  // 2. 打卡逻辑 (支持多次)
-  async function doCheckIn() {
-    const category = document.getElementById('categorySelect').value;
-    const date = document.getElementById('checkInDate').value;
-    const btn = document.getElementById('checkInBtn');
-    btn.disabled = true;
-    const { error } = await supabaseClient.from('records').insert([{ user_id: currentUser.id, category, checkin_date: date }]);
-    if (error) alert(error.message);
-    else { alert('起飞成功！'); loadAllData(); loadRank(); }
-    btn.disabled = false;
+  // 2. 分类榜单逻辑
+  function changeRankType(cat, el) {
+    currentRankCategory = cat;
+    document.querySelectorAll('#rankFilter span').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    loadRank();
   }
 
-  // 3. 查看详情 (支持删除单条记录)
-  async function viewUserProfile(uid, uname) {
-    viewingUserId = uid;
-    showPage('profile');
-    document.getElementById('profName').innerText = uname + ' 的日志';
-    
-    // 获取该用户所有记录
-    const { data: records } = await supabaseClient.from('records')
-      .select('*').eq('user_id', uid).order('checkin_date', {ascending: false});
-    
-    // 汇总数据
-    document.getElementById('profTotalCount').innerText = records.length;
-    const cats = {};
-    records.forEach(r => cats[r.category] = (cats[r.category] || 0) + 1);
-    document.getElementById('profCategoryStats').innerText = Object.entries(cats).map(([k,v]) => `${k}:${v}`).join(' | ');
-
-    // 渲染明细列表 (如果是自己的，显示删除按钮)
-    const listHtml = records.map(r => `
-      <div class="record-detail-item">
-        <span><b>${r.checkin_date}</b> [${r.category}]</span>
-        ${uid === currentUser.id ? `<button class="del-rec-btn" onclick="deleteSingleRecord('${r.id}', event)">删除</button>` : ''}
-      </div>
-    `).join('');
-    document.getElementById('recordList').innerHTML = listHtml || '暂无数据';
-
-    // 简易日历 (显示当月)
-    const thisMonth = new Date().toISOString().slice(0, 7);
-    const daySet = new Set(records.filter(r => r.checkin_date.startsWith(thisMonth)).map(r => parseInt(r.checkin_date.slice(8,10))));
-    const days = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
-    let calHtml = '';
-    for(let i=1; i<=days; i++) calHtml += `<div class="cal-day ${daySet.has(i)?'active':''}">${i}</div>`;
-    document.getElementById('calendar').innerHTML = calHtml;
-    document.getElementById('calendarTitle').innerText = thisMonth + ' 分布';
-  }
-
-  // 删除单条打卡记录
-  async function deleteSingleRecord(rid, event) {
-    if(!confirm('确定要删除这条打卡记录吗？')) return;
-    const btn = event.target;
-    btn.disabled = true;
-    const { error } = await supabaseClient.from('records').delete().eq('id', rid);
-    if(error) alert(error.message);
-    else {
-      btn.closest('.record-detail-item').remove();
-      // 刷新其他统计
-      const total = document.getElementById('profTotalCount');
-      total.innerText = parseInt(total.innerText) - 1;
-      loadAllData(); // 刷新成就
-      loadRank();    // 刷新排行
-    }
-  }
-
-  // 4. 其他逻辑
   async function loadRank() {
-    const { data: raw } = await supabaseClient.from('records').select('user_id, users(nickname)');
+    let query = supabaseClient.from('records').select('user_id, category, users(nickname)');
+    if(currentRankCategory !== 'Total') query = query.eq('category', currentRankCategory);
+    
+    const { data } = await query;
     const stats = {};
-    raw.forEach(r => {
+    data.forEach(r => {
       const id = r.user_id;
       if(!stats[id]) stats[id] = { name: r.users?.nickname || '未知', count: 0 };
       stats[id].count++;
@@ -223,49 +176,103 @@
     document.getElementById('rankList').innerHTML = sorted.map(([id, info], i) => `
       <div class="rank-item" onclick="viewUserProfile('${id}', '${info.name}')">
         <span>${i+1}. ${info.name}</span>
-        <strong>${info.count}次</strong>
+        <strong>${info.count} 次 ></strong>
+      </div>
+    `).join('') || '<p style="text-align:center; color:#999; margin-top:20px;">暂无数据</p>';
+  }
+
+  // 3. 个人深度资料与历史月份切换
+  async function viewUserProfile(uid, uname) {
+    showPage('profile');
+    document.getElementById('profName').innerText = uname + ' 的飞行档案';
+    
+    const { data: records } = await supabaseClient.from('records').select('*').eq('user_id', uid).order('checkin_date', {ascending: false});
+    viewingRecords = records || [];
+
+    // 统计各类别总计
+    const cats = {};
+    viewingRecords.forEach(r => cats[r.category] = (cats[r.category] || 0) + 1);
+    document.getElementById('profTotalCount').innerText = viewingRecords.length;
+    document.getElementById('profCatBreakdown').innerHTML = Object.entries(cats).map(([k,v]) => `${k}: ${v}`).join(' | ');
+
+    // 提取所有月份
+    const monthSet = new Set(viewingRecords.map(r => r.checkin_date.slice(0, 7)));
+    const months = Array.from(monthSet).sort().reverse();
+
+    // 渲染月份选择器
+    document.getElementById('monthPicker').innerHTML = months.map(m => `
+      <div class="month-chip" id="chip-${m}" onclick="renderMonthView('${m}', '${uid}')">${m.replace('-','年')}月</div>
+    `).join('');
+
+    // 默认渲染最新月份
+    if(months.length) renderMonthView(months[0], uid);
+  }
+
+  function renderMonthView(mStr, uid) {
+    document.querySelectorAll('.month-chip').forEach(c => c.classList.remove('active'));
+    document.getElementById('chip-'+mStr)?.classList.add('active');
+    document.getElementById('calTitle').innerText = mStr.replace('-','年') + '月 打卡分布';
+
+    const monthRecs = viewingRecords.filter(r => r.checkin_date.startsWith(mStr));
+    const daySet = new Set(monthRecs.map(r => parseInt(r.checkin_date.slice(8,10))));
+    
+    // 渲染日历网格
+    const [y, m] = mStr.split('-').map(Number);
+    const days = new Date(y, m, 0).getDate();
+    let calHtml = '';
+    for(let i=1; i<=days; i++) {
+      calHtml += `<div class="cal-day ${daySet.has(i)?'active':''}">${i}</div>`;
+    }
+    document.getElementById('calendar').innerHTML = calHtml;
+
+    // 渲染明细
+    document.getElementById('detailList').innerHTML = monthRecs.map(r => `
+      <div class="record-item">
+        <span>${r.checkin_date} [${r.category}]</span>
+        ${uid === currentUser.id ? `<button onclick="delRec('${r.id}', event)" style="width:auto; padding:2px 8px; background:none; border:1px solid red; color:red; font-size:11px; margin:0;">删除</button>` : ''}
       </div>
     `).join('');
   }
 
-  async function loadAllData() {
-    if (!currentUser) return;
-    const { data: recs } = await supabaseClient.from('records').select('id').eq('user_id', currentUser.id);
-    const count = recs?.length || 0;
-    const { data: achs } = await supabaseClient.from('achievements').select('*').order('threshold', {ascending:true});
-    const { data: earned } = await supabaseClient.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id);
-    const earnedIds = earned?.map(e => e.achievement_id) || [];
-    document.getElementById('achievementsBox').innerHTML = achs.map(a => {
-      const isUn = earnedIds.includes(a.id);
-      return `<div class="achievement-item ${isUn?'unlocked':''}">
-        <div style="font-size:18px; margin-right:10px;">${isUn?'🏆':'🔒'}</div>
-        <div><strong>${a.title}</strong><br><small>${a.description} (${count}/${a.threshold})</small></div>
-      </div>`;
-    }).join('');
+  // 4. 打卡与删除
+  async function doCheckIn() {
+    const c = document.getElementById('categorySelect').value;
+    const d = document.getElementById('checkInDate').value;
+    const { error } = await supabaseClient.from('records').insert([{ user_id: currentUser.id, category: c, checkin_date: d }]);
+    if(error) alert('打卡失败: ' + error.message);
+    else { alert('打卡成功！'); loadAllData(); loadRank(); }
   }
 
+  async function delRec(rid, e) {
+    if(!confirm('删除记录？')) return;
+    const { error } = await supabaseClient.from('records').delete().eq('id', rid);
+    if(!error) { e.target.closest('.record-item').remove(); loadAllData(); loadRank(); }
+  }
+
+  // 其他基础功能
   function showPage(p) {
     document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
     document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
     document.getElementById('page-'+p).classList.remove('hidden');
     if(document.getElementById('nav-'+p)) document.getElementById('nav-'+p).classList.add('active');
-    if(p === 'admin') loadAdminUserList();
   }
 
-  async function loadAdminUserList() {
-    const { data } = await supabaseClient.from('users').select('*');
-    document.getElementById('adminUserList').innerHTML = data.map(u => `
-      <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
-        <span>${u.nickname} (${u.username})</span>
-        ${u.role !== 'admin' ? `<button onclick="deleteUser('${u.id}', event)" style="width:auto; padding:2px 8px; background:red; font-size:11px;">删除用户</button>` : ''}
-      </div>
-    `).join('');
-  }
-
-  async function deleteUser(uid, e) {
-    if(!confirm('删掉用户及其记录？')) return;
-    await supabaseClient.from('users').delete().eq('id', uid);
-    e.target.closest('div').remove();
+  async function loadAllData() {
+    if(!currentUser) return;
+    const { data: annos } = await supabaseClient.from('announcements').select('content').limit(1);
+    document.getElementById('annoBox').innerText = "📢 公告：" + (annos?.[0]?.content || "暂无公告");
+    
+    const { data: r } = await supabaseClient.from('records').select('id').eq('user_id', currentUser.id);
+    const count = r?.length || 0;
+    const { data: achs } = await supabaseClient.from('achievements').select('*').order('threshold', {ascending:true});
+    const { data: earned } = await supabaseClient.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id);
+    const eIds = earned?.map(e => e.achievement_id) || [];
+    
+    document.getElementById('achievementsBox').innerHTML = '<h3>我的成就</h3>' + achs.map(a => `
+      <div style="display:flex; align-items:center; padding:10px; border:1px solid #eee; border-radius:8px; margin-bottom:8px; opacity:${eIds.includes(a.id)?1:0.4}; background:${eIds.includes(a.id)?'#fffde7':'#fafafa'}">
+        <span style="font-size:20px; margin-right:10px;">${eIds.includes(a.id)?'🏆':'🔒'}</span>
+        <div><strong>${a.title}</strong><br><small>${a.description} (${count}/${a.threshold})</small></div>
+      </div>`).join('');
   }
 
   function logout() { localStorage.clear(); location.reload(); }
