@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>起飞打卡企划 · 数据中心</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { --primary: #007bff; --bg: #f4f7f6; --success: #28a745; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #333; }
+    .container { max-width: 500px; margin: 0 auto; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    h1, h2, h3 { margin-top: 0; text-align: center; }
+    input, select, button { width: 100%; padding: 12px; margin-top: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    button:hover { background: #0056b3; }
+    
+    /* 导航栏 */
+    .nav { display: flex; gap: 8px; margin-bottom: 20px; }
+    .nav button { flex: 1; background: #eee; color: #666; font-size: 13px; padding: 10px 5px; }
+    .nav button.active { background: var(--primary); color: white; }
+
+    /* 排行榜交互 */
+    .rank-item { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: 0.2s; }
+    .rank-item:hover { background: #f0f7ff; }
+    .rank-item span { color: var(--primary); font-weight: 500; text-decoration: underline; }
+
+    /* 数据统计样式 */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+    .stat-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
+    .stat-card big { display: block; font-size: 24px; font-weight: bold; color: var(--primary); }
+
+    /* 简易日历/热力图 */
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
+    .cal-day { aspect-ratio: 1/1; background: #eee; border-radius: 3px; font-size: 10px; display: flex; align-items: center; justify-content: center; color: #999; }
+    .cal-day.active { background: var(--success); color: white; font-weight: bold; }
+
+    /* 成就样式 */
+    .achievement-item { display: flex; align-items: center; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #eee; }
+    .achievement-item.unlocked { background: #fffde7; border-color: #ffd700; }
+    .achievement-item.locked { background: #fafafa; opacity: 0.6; }
+
+    .hidden { display: none !important; }
+    .back-btn { background: #666; margin-bottom: 15px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 登录框 -->
+  <div id="loginSection" class="card">
+    <h1>🚀 起飞打卡</h1>
+    <input id="nickname" placeholder="输入昵称" />
+    <input id="qq" placeholder="输入QQ号" />
+    <button id="loginBtn">进入企划</button>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="mainSection" class="hidden">
+    <div class="nav">
+      <button onclick="showPage('checkin')" id="nav-checkin" class="active">打卡</button>
+      <button onclick="showPage('rank')" id="nav-rank">排行榜</button>
+      <button onclick="showPage('me')" id="nav-me">成就墙</button>
+    </div>
+
+    <!-- 打卡页 -->
+    <div id="page-checkin" class="page card">
+      <h2>欢迎, <span id="displayNickname"></span></h2>
+      <select id="categorySelect">
+        <option value="真人">真人素材 🎬</option>
+        <option value="本子">纸质本子 📖</option>
+        <option value="视频">短视频 📱</option>
+      </select>
+      <button id="checkInBtn">立即打卡 🚀</button>
+      <div id="annoBox" style="margin-top:20px; font-size:13px; color:#666; border-top:1px solid #eee; padding-top:10px;"></div>
+    </div>
+
+    <!-- 排行榜页 -->
+    <div id="page-rank" class="page card hidden">
+      <h2>起飞排行榜</h2>
+      <p style="font-size:12px; color:#999; text-align:center;">提示：点击用户名查看详细统计</p>
+      <div id="rankList">加载中...</div>
+    </div>
+
+    <!-- 成就页 -->
+    <div id="page-me" class="page card hidden">
+      <h2>成就墙</h2>
+      <div id="achievementsBox"></div>
+      <button onclick="logout()" style="background:#ff5252; margin-top:30px; font-size:14px;">退出登录</button>
+    </div>
+
+    <!-- 个人详细统计页 (新增) -->
+    <div id="page-profile" class="page card hidden">
+      <button class="back-btn" onclick="showPage('rank')">← 返回排行榜</button>
+      <h2 id="profName">用户资料</h2>
+      
+      <div class="stat-grid">
+        <div class="stat-card"><small>总起飞次数</small><big id="profTotal">0</big></div>
+        <div class="stat-card"><small>本月次数</small><big id="profMonth">0</big></div>
+      </div>
+
+      <h3>本月打卡分布</h3>
+      <div id="calendar" class="calendar-grid"></div>
+
+      <h3>历史月度统计</h3>
+      <div id="monthlyStats" style="font-size:14px;"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://bunogkfayqafxghedrdt.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_9zBGizofsJmjERXnN68epQ_L-cGXu2F';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let currentUser = null;
+
+  // 1. 登录逻辑
+  async function login() {
+    const nickname = document.getElementById('nickname').value.trim();
+    const qq = document.getElementById('qq').value.trim();
+    if (!nickname || !qq) return alert('请填全');
+    try {
+      let { data: user } = await supabaseClient.from('users').select('*').eq('qq', qq).maybeSingle();
+      if (!user) {
+        const { data: newUser, error: insError } = await supabaseClient.from('users').insert([{ nickname, qq }]).select().single();
+        if (insError) throw insError;
+        user = newUser;
+      }
+      currentUser = user;
+      localStorage.setItem('qifei_user', JSON.stringify(user));
+      initApp();
+    } catch (e) { alert(e.message); }
+  }
+
+  function initApp() {
+    document.getElementById('loginSection').classList.add('hidden');
+    document.getElementById('mainSection').classList.remove('hidden');
+    document.getElementById('displayNickname').innerText = currentUser.nickname;
+    loadAllData();
+  }
+
+  // 2. 加载排行榜
+  async function loadRank() {
+    const { data: ranks } = await supabaseClient.from('user_stats').select('*').order('total_count', {ascending:false}).limit(20);
+    document.getElementById('rankList').innerHTML = ranks?.map((u, i) => `
+      <div class="rank-item" onclick="viewUserProfile('${u.id}', '${u.nickname}')">
+        <span>${i+1}. ${u.nickname}</span>
+        <strong>${u.total_count}次 ></strong>
+      </div>
+    `).join('') || "暂无排名";
+  }
+
+  // 3. 查看用户详细资料 (核心新功能)
+  async function viewUserProfile(uid, uname) {
+    showPage('profile');
+    document.getElementById('profName').innerText = uname + ' 的飞行日志';
+    
+    // 获取该用户所有记录
+    const { data: records } = await supabaseClient
+      .from('records')
+      .select('checkin_date')
+      .eq('user_id', uid)
+      .order('checkin_date', {ascending: false});
+
+    // A. 计算总数
+    document.getElementById('profTotal').innerText = records?.length || 0;
+
+    // B. 计算月度分布
+    const monthMap = {};
+    const thisMonth = new Date().toISOString().slice(0, 7); // "2023-10"
+    let thisMonthCount = 0;
+    const checkinDays = new Set();
+
+    records?.forEach(r => {
+      const m = r.checkin_date.slice(0, 7);
+      monthMap[m] = (monthMap[m] || 0) + 1;
+      if (m === thisMonth) {
+        thisMonthCount++;
+        checkinDays.add(parseInt(r.checkin_date.slice(8, 10)));
+      }
+    });
+
+    document.getElementById('profMonth').innerText = thisMonthCount;
+
+    // C. 渲染历史月度列表
+    document.getElementById('monthlyStats').innerHTML = Object.keys(monthMap).sort().reverse().map(m => `
+      <div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #f0f0f0;">
+        <span>${m.replace('-','年')}月</span>
+        <strong>${monthMap[m]} 次</strong>
+      </div>
+    `).join('');
+
+    // D. 渲染简易日历 (当月)
+    const now = new Date();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    let calHtml = '';
+    for (let i = 1; i <= daysInMonth; i++) {
+      const isActive = checkinDays.has(i) ? 'active' : '';
+      calHtml += `<div class="cal-day ${isActive}">${i}</div>`;
+    }
+    document.getElementById('calendar').innerHTML = calHtml;
+  }
+
+  // 4. 打卡逻辑
+  async function doCheckIn() {
+    const btn = document.getElementById('checkInBtn');
+    btn.disabled = true;
+    const { error } = await supabaseClient.from('records').insert([{ user_id: currentUser.id, category: document.getElementById('categorySelect').value }]);
+    if (error) {
+      alert(error.code === '23505' ? '今天此类别已打卡' : error.message);
+    } else {
+      alert('打卡成功！');
+      loadAllData();
+    }
+    btn.disabled = false;
+  }
+
+  // 加载公告和成就 (复用之前的逻辑)
+  async function loadAllData() {
+    if (!currentUser) return;
+    loadRank();
+    // 公告
+    const { data: annos } = await supabaseClient.from('announcements').select('content').limit(1);
+    document.getElementById('annoBox').innerHTML = "📢 公告：" + (annos?.[0]?.content || "暂无新公告");
+    
+    // 成就逻辑 (同上个版本)
+    const { data: userStat } = await supabaseClient.from('user_stats').select('total_count').eq('id', currentUser.id).single();
+    const myCount = userStat?.total_count || 0;
+    const { data: allAch } = await supabaseClient.from('achievements').select('*').order('threshold', {ascending:true});
+    const { data: myEarned } = await supabaseClient.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id);
+    const earnedIds = myEarned?.map(a => a.achievement_id) || [];
+    if (allAch) {
+      document.getElementById('achievementsBox').innerHTML = allAch.map(ach => {
+        const isUnlocked = earnedIds.includes(ach.id);
+        const progress = Math.min(Math.floor((myCount / ach.threshold) * 100), 100);
+        return `<div class="achievement-item ${isUnlocked ? 'unlocked' : 'locked'}">
+          <div style="font-size:20px; margin-right:10px;">${isUnlocked ? '🏆' : '🔒'}</div>
+          <div style="flex:1;"><strong>${ach.title}</strong><br><small>${ach.description}</small>
+          ${!isUnlocked ? `<div style="width:100%; background:#eee; height:4px; margin-top:5px;"><div style="width:${progress}%; background:#ff9800; height:100%;"></div></div>` : ''}
+          </div></div>`;
+      }).join('');
+    }
+  }
+
+  function showPage(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+    const target = document.getElementById('page-' + pageId);
+    if(target) target.classList.remove('hidden');
+    const navBtn = document.getElementById('nav-' + pageId);
+    if(navBtn) navBtn.classList.add('active');
+  }
+
+  function logout() { localStorage.clear(); location.reload(); }
+
+  const savedUser = localStorage.getItem('qifei_user');
+  if (savedUser) { currentUser = JSON.parse(savedUser); initApp(); }
+  document.getElementById('loginBtn').addEventListener('click', login);
+  document.getElementById('checkInBtn').addEventListener('click', doCheckIn);
+</script>
+</body>
+</html>
