@@ -219,10 +219,41 @@
     `).join('');
   }
 
-  async function deleteUser(uid) {
-    if(!confirm('确定删除？')) return;
-    await supabaseClient.from('users').delete().eq('id', uid);
-    loadAdminUserList();
+  async function deleteUser(uid, uname) {
+    // 1. 先弹窗确认，防止误删
+    if (!confirm(`确定要彻底删除 [${uname}] 吗？\n这会同时抹除他所有的打卡记录和成就。`)) return;
+  
+    // 2. 交互优化：立刻找到那个按钮，把它变灰，显示“正在删除...”
+    // 这样用户就会感觉到“网页已经在干活了”
+    const btn = event.target; // 获取当前点击的那个按钮
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = '处理中...';
+  
+    try {
+      // 3. 执行删除 (这里其实只需要删 users，因为上面 SQL 设置了 cascade，记录会自动消失)
+      const { error } = await supabaseClient
+        .from('users')
+        .delete()
+        .eq('id', uid);
+  
+      if (error) throw error;
+  
+      // 4. 成功后：不要等重新加载，直接从网页上把这一行“滑掉”
+      // 这样给人的感觉就是“秒删”
+      btn.parentElement.style.transition = '0.3s';
+      btn.parentElement.style.opacity = '0';
+      setTimeout(() => {
+        btn.parentElement.remove(); // 0.3秒后从网页彻底移除
+        alert(`用户 ${uname} 已删除`);
+      }, 300);
+  
+    } catch (err) {
+      console.error(err);
+      alert('删除失败，原因：' + err.message);
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
   }
 
   async function doCheckIn() {
