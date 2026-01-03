@@ -257,6 +257,32 @@
     if(document.getElementById('nav-'+p)) document.getElementById('nav-'+p).classList.add('active');
   }
 
+  async function deleteUser(uid, uname, event) {
+    if(!confirm(`确定要彻底删除用户 [${uname}] 吗？`)) return;
+  
+    const btn = event.target;
+    const row = btn.closest('div'); // 找到用户这一行的 HTML 容器
+    
+    // 交互优化：立刻变灰，防止重复点击
+    btn.disabled = true;
+    btn.innerText = '正在移除...';
+  
+    const { error } = await supabaseClient.from('users').delete().eq('id', uid);
+  
+    if (error) {
+      alert('删除失败：' + error.message);
+      btn.disabled = false;
+      btn.innerText = '删除';
+    } else {
+      // 成功后，该行直接从视觉上消失，不需要等刷新
+      row.style.transition = 'all 0.4s ease';
+      row.style.opacity = '0';
+      row.style.transform = 'translateX(30px)';
+      setTimeout(() => {
+        row.remove();
+      }, 400);
+    }
+  }
   async function loadAllData() {
     if(!currentUser) return;
     const { data: annos } = await supabaseClient.from('announcements').select('content').limit(1);
