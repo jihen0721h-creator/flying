@@ -3,101 +3,109 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>起飞打卡企划 · 密码保护版</title>
+  <title>起飞打卡企划 · 记录管理版</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    :root { --primary: #007bff; --bg: #f4f7f6; --success: #28a745; }
+    :root { --primary: #007bff; --bg: #f4f7f6; --success: #28a745; --gold: #ffd700; --danger: #dc3545; }
     body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #333; }
     .container { max-width: 500px; margin: 0 auto; }
-    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 15px; }
     h1, h2, h3 { margin-top: 0; text-align: center; }
     input, select, button { width: 100%; padding: 12px; margin-top: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
-    button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
-    button:hover { background: #0056b3; }
-    button:disabled { background: #ccc; }
+    button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
     
-    .nav { display: flex; gap: 8px; margin-bottom: 20px; }
+    .nav { display: flex; gap: 5px; margin-bottom: 15px; }
     .nav button { flex: 1; background: #eee; color: #666; font-size: 13px; padding: 10px 5px; }
     .nav button.active { background: var(--primary); color: white; }
 
     .rank-item { display: flex; justify-content: space-between; padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; }
-    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
-    .stat-card { background: #f8f9fa; padding: 15px; border-radius: 8px; text-align: center; }
-    .stat-card big { display: block; font-size: 24px; font-weight: bold; color: var(--primary); }
-    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 10px; }
-    .cal-day { aspect-ratio: 1/1; background: #eee; border-radius: 3px; font-size: 10px; display: flex; align-items: center; justify-content: center; }
-    .cal-day.active { background: var(--success); color: white; }
-    .achievement-item { display: flex; align-items: center; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #eee; }
-    .achievement-item.unlocked { background: #fffde7; border-color: #ffd700; }
-    .achievement-item.locked { opacity: 0.5; background: #fafafa; }
+    
+    /* 统计页增强 */
+    .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
+    .cal-day { aspect-ratio: 1/1; background: #eee; border-radius: 4px; font-size: 10px; display: flex; align-items: center; justify-content: center; color: #999; }
+    .cal-day.active { background: var(--success); color: white; font-weight: bold; }
+
+    /* 记录明细列表 */
+    .record-detail-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; font-size: 13px; }
+    .del-rec-btn { background: none; color: var(--danger); border: 1px solid var(--danger); width: auto; padding: 2px 8px; font-size: 11px; margin-top: 0; }
+    .del-rec-btn:hover { background: var(--danger); color: white; }
+
+    .achievement-item { display: flex; align-items: center; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #eee; font-size: 14px; }
+    .achievement-item.unlocked { background: #fffde7; border-color: var(--gold); }
     .hidden { display: none !important; }
-    .back-btn { background: #666; margin-bottom: 15px; }
-    .tips { font-size: 12px; color: #999; text-align: center; margin-top: 10px; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <!-- 登录/注册框 -->
+  <!-- 登录框 -->
   <div id="loginSection" class="card">
     <h1>🚀 起飞打卡</h1>
-    <input id="username" placeholder="账号 (登录凭证)" />
+    <input id="username" placeholder="账号" />
     <input id="password" type="password" placeholder="密码" />
-    <input id="nickname" placeholder="昵称 (仅首次注册需要)" />
-    <button id="loginBtn">进入企划</button>
-    <p class="tips">首次输入账号将自动注册</p>
+    <input id="nickname" placeholder="昵称 (仅注册需填)" />
+    <button id="loginBtn">登录/进入企划</button>
   </div>
 
   <!-- 主界面 -->
   <div id="mainSection" class="hidden">
     <div class="nav">
       <button onclick="showPage('checkin')" id="nav-checkin" class="active">打卡</button>
-      <button onclick="showPage('rank')" id="nav-rank">排行榜</button>
+      <button onclick="showPage('rank')" id="nav-rank">榜单</button>
       <button onclick="showPage('me')" id="nav-me">成就</button>
       <button onclick="showPage('admin')" id="nav-admin" class="hidden">管理</button>
     </div>
 
     <!-- 打卡页 -->
     <div id="page-checkin" class="page card">
-      <h2>欢迎, <span id="displayNickname"></span></h2>
+      <h2 style="font-size: 18px;">你好, <span id="displayNickname"></span></h2>
       <select id="categorySelect">
         <option value="真人">真人素材 🎬</option>
         <option value="本子">纸质本子 📖</option>
         <option value="视频">短视频 📱</option>
       </select>
-      <button id="checkInBtn">立即打卡 🚀</button>
-      <div id="annoBox" style="margin-top:20px; font-size:13px; color:#666;"></div>
+      <input type="date" id="checkInDate">
+      <button id="checkInBtn" style="margin-top:20px;">确认打卡 🚀</button>
+      <div id="annoBox" style="margin-top:20px; font-size:12px; color:#888;"></div>
     </div>
 
-    <!-- 排行榜/管理/详情页 (逻辑同前，此处省略重复HTML结构以节省空间，建议保留你上个版本的结构) -->
-    <!-- ... (保留你之前的 page-rank, page-me, page-profile, page-admin 结构) ... -->
+    <!-- 资料详情页 -->
+    <div id="page-profile" class="page card hidden">
+      <button onclick="showPage('rank')" style="background:#666; width:70px; font-size:12px; margin-bottom:10px;">← 返回</button>
+      <h2 id="profName" style="font-size: 18px;">资料详情</h2>
+      
+      <!-- 汇总 -->
+      <div id="profSummary" style="background:#e7f1ff; padding:15px; border-radius:10px; margin-bottom:15px;">
+        <strong>累计起飞：<span id="profTotalCount">0</span> 次</strong>
+        <div id="profCategoryStats" style="font-size:12px; margin-top:5px; color:#555;"></div>
+      </div>
+
+      <h4 id="calendarTitle">月份分布</h4>
+      <div id="calendar" class="calendar-grid"></div>
+
+      <h4 style="margin-top:20px;">打卡明细</h4>
+      <div id="recordList"></div>
+    </div>
+
+    <!-- 榜单页 -->
     <div id="page-rank" class="page card hidden">
-      <h2>排行榜</h2>
+      <h3>排行榜 (点击头像查看)</h3>
       <div id="rankList"></div>
     </div>
-    
+
+    <!-- 成就页 -->
     <div id="page-me" class="page card hidden">
-      <h2>我的成就</h2>
+      <h2>成就墙</h2>
       <div id="achievementsBox"></div>
-      <button onclick="logout()" style="background:#ff5252; margin-top:20px;">退出登录</button>
+      <button onclick="logout()" style="background:#666; margin-top:20px; font-size:12px;">退出登录</button>
     </div>
 
-    <div id="page-profile" class="page card hidden">
-      <button class="back-btn" onclick="showPage('rank')">← 返回</button>
-      <h2 id="profName">资料</h2>
-      <div class="stat-grid">
-        <div class="stat-card"><small>总计</small><big id="profTotal">0</big></div>
-        <div class="stat-card"><small>本月</small><big id="profMonth">0</big></div>
-      </div>
-      <h3>本月分布</h3><div id="calendar" class="calendar-grid"></div>
-      <h3>月度统计</h3><div id="monthlyStats"></div>
-    </div>
-
+    <!-- 管理页 -->
     <div id="page-admin" class="page card hidden">
-      <h2>用户管理</h2>
+      <h2>管理中心</h2>
       <div id="adminUserList"></div>
     </div>
-
   </div>
 </div>
 
@@ -107,176 +115,164 @@
   const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   let currentUser = null;
+  let viewingUserId = null;
 
+  // 1. 登录
   async function login() {
     const userVal = document.getElementById('username').value.trim();
     const passVal = document.getElementById('password').value.trim();
     const nickVal = document.getElementById('nickname').value.trim();
-
-    if (!userVal || !passVal) return alert('请输入账号和密码');
-
+    if (!userVal || !passVal) return alert('必填');
     try {
-      // 1. 查找账号
       let { data: user } = await supabaseClient.from('users').select('*').eq('username', userVal).maybeSingle();
-
       if (!user) {
-        // 2. 账号不存在 -> 注册
-        if (!nickVal) return alert('新用户请填写昵称');
-        const { data: newUser, error: insError } = await supabaseClient
-          .from('users')
-          .insert([{ username: userVal, password: passVal, nickname: nickVal }])
-          .select().single();
-        if (insError) throw insError;
-        user = newUser;
-        alert('注册成功！');
-      } else {
-        // 3. 账号已存在 -> 验证密码
-        if (user.password !== passVal) {
-          return alert('密码错误！');
-        }
-      }
-
+        if (!nickVal) return alert('新用户需填昵称');
+        const { data: nu, error: e } = await supabaseClient.from('users').insert([{username: userVal, password: passVal, nickname: nickVal}]).select().single();
+        if(e) throw e; user = nu;
+      } else if (user.password !== passVal) return alert('密码错误');
       currentUser = user;
       localStorage.setItem('qifei_user', JSON.stringify(user));
       initApp();
-    } catch (e) { alert(e.message); }
+    } catch(e){ alert(e.message); }
   }
 
   function initApp() {
     document.getElementById('loginSection').classList.add('hidden');
     document.getElementById('mainSection').classList.remove('hidden');
     document.getElementById('displayNickname').innerText = currentUser.nickname;
+    document.getElementById('checkInDate').value = new Date().toISOString().split('T')[0];
     if (currentUser.role === 'admin') document.getElementById('nav-admin').classList.remove('hidden');
+    loadRank();
     loadAllData();
   }
 
-  // --- 以下逻辑与上个版本相同，确保函数名一致 ---
-  async function loadAllData() {
-    if (!currentUser) return;
-    loadRank();
-    const { data: annos } = await supabaseClient.from('announcements').select('content').limit(1);
-    document.getElementById('annoBox').innerHTML = "📢 公告：" + (annos?.[0]?.content || "暂无");
+  // 2. 打卡逻辑 (支持多次)
+  async function doCheckIn() {
+    const category = document.getElementById('categorySelect').value;
+    const date = document.getElementById('checkInDate').value;
+    const btn = document.getElementById('checkInBtn');
+    btn.disabled = true;
+    const { error } = await supabaseClient.from('records').insert([{ user_id: currentUser.id, category, checkin_date: date }]);
+    if (error) alert(error.message);
+    else { alert('起飞成功！'); loadAllData(); loadRank(); }
+    btn.disabled = false;
+  }
+
+  // 3. 查看详情 (支持删除单条记录)
+  async function viewUserProfile(uid, uname) {
+    viewingUserId = uid;
+    showPage('profile');
+    document.getElementById('profName').innerText = uname + ' 的日志';
     
-    // 成就进度逻辑
-    const { data: userStat } = await supabaseClient.from('user_stats').select('total_count').eq('id', currentUser.id).single();
-    const myCount = userStat?.total_count || 0;
-    const { data: allAch } = await supabaseClient.from('achievements').select('*').order('threshold', {ascending:true});
-    const { data: myEarned } = await supabaseClient.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id);
-    const earnedIds = myEarned?.map(a => a.achievement_id) || [];
+    // 获取该用户所有记录
+    const { data: records } = await supabaseClient.from('records')
+      .select('*').eq('user_id', uid).order('checkin_date', {ascending: false});
     
-    if (allAch) {
-      document.getElementById('achievementsBox').innerHTML = allAch.map(ach => {
-        const isUnlocked = earnedIds.includes(ach.id);
-        const progress = Math.min(Math.floor((myCount / ach.threshold) * 100), 100);
-        return `<div class="achievement-item ${isUnlocked ? 'unlocked' : 'locked'}">
-          <div style="font-size:20px; margin-right:10px;">${isUnlocked ? '🏆' : '🔒'}</div>
-          <div style="flex:1;"><strong>${ach.title}</strong><br><small>${ach.description}</small>
-          ${!isUnlocked ? `<div style="width:100%; background:#eee; height:4px; margin-top:5px;"><div style="width:${progress}%; background:#ff9800; height:100%;"></div></div>` : ''}
-          </div></div>`;
-      }).join('');
+    // 汇总数据
+    document.getElementById('profTotalCount').innerText = records.length;
+    const cats = {};
+    records.forEach(r => cats[r.category] = (cats[r.category] || 0) + 1);
+    document.getElementById('profCategoryStats').innerText = Object.entries(cats).map(([k,v]) => `${k}:${v}`).join(' | ');
+
+    // 渲染明细列表 (如果是自己的，显示删除按钮)
+    const listHtml = records.map(r => `
+      <div class="record-detail-item">
+        <span><b>${r.checkin_date}</b> [${r.category}]</span>
+        ${uid === currentUser.id ? `<button class="del-rec-btn" onclick="deleteSingleRecord('${r.id}', event)">删除</button>` : ''}
+      </div>
+    `).join('');
+    document.getElementById('recordList').innerHTML = listHtml || '暂无数据';
+
+    // 简易日历 (显示当月)
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const daySet = new Set(records.filter(r => r.checkin_date.startsWith(thisMonth)).map(r => parseInt(r.checkin_date.slice(8,10))));
+    const days = new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate();
+    let calHtml = '';
+    for(let i=1; i<=days; i++) calHtml += `<div class="cal-day ${daySet.has(i)?'active':''}">${i}</div>`;
+    document.getElementById('calendar').innerHTML = calHtml;
+    document.getElementById('calendarTitle').innerText = thisMonth + ' 分布';
+  }
+
+  // 删除单条打卡记录
+  async function deleteSingleRecord(rid, event) {
+    if(!confirm('确定要删除这条打卡记录吗？')) return;
+    const btn = event.target;
+    btn.disabled = true;
+    const { error } = await supabaseClient.from('records').delete().eq('id', rid);
+    if(error) alert(error.message);
+    else {
+      btn.closest('.record-detail-item').remove();
+      // 刷新其他统计
+      const total = document.getElementById('profTotalCount');
+      total.innerText = parseInt(total.innerText) - 1;
+      loadAllData(); // 刷新成就
+      loadRank();    // 刷新排行
     }
   }
 
+  // 4. 其他逻辑
   async function loadRank() {
-    const { data: ranks } = await supabaseClient.from('user_stats').select('*').order('total_count', {ascending:false}).limit(20);
-    document.getElementById('rankList').innerHTML = ranks?.map((u, i) => `
-      <div class="rank-item" onclick="viewUserProfile('${u.id}', '${u.nickname}')">
-        <span>${i+1}. ${u.nickname}</span>
-        <strong>${u.total_count}次 ></strong>
-      </div>
-    `).join('') || "暂无";
-  }
-
-  async function viewUserProfile(uid, uname) {
-    showPage('profile');
-    document.getElementById('profName').innerText = uname + ' 的日志';
-    const { data: records } = await supabaseClient.from('records').select('checkin_date').eq('user_id', uid).order('checkin_date', {ascending: false});
-    document.getElementById('profTotal').innerText = records?.length || 0;
-    const monthMap = {};
-    const thisMonth = new Date().toISOString().slice(0, 7);
-    let thisMonthCount = 0;
-    const checkinDays = new Set();
-    records?.forEach(r => {
-      const m = r.checkin_date.slice(0, 7);
-      monthMap[m] = (monthMap[m] || 0) + 1;
-      if (m === thisMonth) { thisMonthCount++; checkinDays.add(parseInt(r.checkin_date.slice(8, 10))); }
+    const { data: raw } = await supabaseClient.from('records').select('user_id, users(nickname)');
+    const stats = {};
+    raw.forEach(r => {
+      const id = r.user_id;
+      if(!stats[id]) stats[id] = { name: r.users?.nickname || '未知', count: 0 };
+      stats[id].count++;
     });
-    document.getElementById('profMonth').innerText = thisMonthCount;
-    document.getElementById('monthlyStats').innerHTML = Object.keys(monthMap).sort().reverse().map(m => `<div style="display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px solid #f0f0f0;"><span>${m}</span><strong>${monthMap[m]}次</strong></div>`).join('');
-    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-    let calHtml = '';
-    for (let i = 1; i <= daysInMonth; i++) calHtml += `<div class="cal-day ${checkinDays.has(i) ? 'active' : ''}">${i}</div>`;
-    document.getElementById('calendar').innerHTML = calHtml;
-  }
-
-  async function loadAdminUserList() {
-    const { data: users } = await supabaseClient.from('users').select('*').order('created_at', {ascending: false});
-    document.getElementById('adminUserList').innerHTML = users.map(u => `
-      <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
-        <div><strong>${u.nickname}</strong><br><small>账号: ${u.username}</small></div>
-        ${u.role !== 'admin' ? `<button onclick="deleteUser('${u.id}')" style="width:auto; background:red; padding:4px 8px; font-size:12px;">删除</button>` : ''}
+    const sorted = Object.entries(stats).sort((a,b) => b[1].count - a[1].count);
+    document.getElementById('rankList').innerHTML = sorted.map(([id, info], i) => `
+      <div class="rank-item" onclick="viewUserProfile('${id}', '${info.name}')">
+        <span>${i+1}. ${info.name}</span>
+        <strong>${info.count}次</strong>
       </div>
     `).join('');
   }
 
-  async function deleteUser(uid, uname) {
-    // 1. 先弹窗确认，防止误删
-    if (!confirm(`确定要彻底删除 [${uname}] 吗？\n这会同时抹除他所有的打卡记录和成就。`)) return;
-  
-    // 2. 交互优化：立刻找到那个按钮，把它变灰，显示“正在删除...”
-    // 这样用户就会感觉到“网页已经在干活了”
-    const btn = event.target; // 获取当前点击的那个按钮
-    const originalText = btn.innerText;
-    btn.disabled = true;
-    btn.innerText = '处理中...';
-  
-    try {
-      // 3. 执行删除 (这里其实只需要删 users，因为上面 SQL 设置了 cascade，记录会自动消失)
-      const { error } = await supabaseClient
-        .from('users')
-        .delete()
-        .eq('id', uid);
-  
-      if (error) throw error;
-  
-      // 4. 成功后：不要等重新加载，直接从网页上把这一行“滑掉”
-      // 这样给人的感觉就是“秒删”
-      btn.parentElement.style.transition = '0.3s';
-      btn.parentElement.style.opacity = '0';
-      setTimeout(() => {
-        btn.parentElement.remove(); // 0.3秒后从网页彻底移除
-        alert(`用户 ${uname} 已删除`);
-      }, 300);
-  
-    } catch (err) {
-      console.error(err);
-      alert('删除失败，原因：' + err.message);
-      btn.disabled = false;
-      btn.innerText = originalText;
-    }
+  async function loadAllData() {
+    if (!currentUser) return;
+    const { data: recs } = await supabaseClient.from('records').select('id').eq('user_id', currentUser.id);
+    const count = recs?.length || 0;
+    const { data: achs } = await supabaseClient.from('achievements').select('*').order('threshold', {ascending:true});
+    const { data: earned } = await supabaseClient.from('user_achievements').select('achievement_id').eq('user_id', currentUser.id);
+    const earnedIds = earned?.map(e => e.achievement_id) || [];
+    document.getElementById('achievementsBox').innerHTML = achs.map(a => {
+      const isUn = earnedIds.includes(a.id);
+      return `<div class="achievement-item ${isUn?'unlocked':''}">
+        <div style="font-size:18px; margin-right:10px;">${isUn?'🏆':'🔒'}</div>
+        <div><strong>${a.title}</strong><br><small>${a.description} (${count}/${a.threshold})</small></div>
+      </div>`;
+    }).join('');
   }
 
-  async function doCheckIn() {
-    const { error } = await supabaseClient.from('records').insert([{ user_id: currentUser.id, category: document.getElementById('categorySelect').value }]);
-    if (error) alert(error.code === '23505' ? '已打卡' : error.message);
-    else { alert('打卡成功'); loadAllData(); }
+  function showPage(p) {
+    document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
+    document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
+    document.getElementById('page-'+p).classList.remove('hidden');
+    if(document.getElementById('nav-'+p)) document.getElementById('nav-'+p).classList.add('active');
+    if(p === 'admin') loadAdminUserList();
   }
 
-  function showPage(pageId) {
-    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
-    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
-    document.getElementById('page-' + pageId).classList.remove('hidden');
-    if(document.getElementById('nav-' + pageId)) document.getElementById('nav-' + pageId).classList.add('active');
-    if(pageId === 'admin') loadAdminUserList();
+  async function loadAdminUserList() {
+    const { data } = await supabaseClient.from('users').select('*');
+    document.getElementById('adminUserList').innerHTML = data.map(u => `
+      <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #eee;">
+        <span>${u.nickname} (${u.username})</span>
+        ${u.role !== 'admin' ? `<button onclick="deleteUser('${u.id}', event)" style="width:auto; padding:2px 8px; background:red; font-size:11px;">删除用户</button>` : ''}
+      </div>
+    `).join('');
+  }
+
+  async function deleteUser(uid, e) {
+    if(!confirm('删掉用户及其记录？')) return;
+    await supabaseClient.from('users').delete().eq('id', uid);
+    e.target.closest('div').remove();
   }
 
   function logout() { localStorage.clear(); location.reload(); }
-
   const savedUser = localStorage.getItem('qifei_user');
   if (savedUser) { currentUser = JSON.parse(savedUser); initApp(); }
   document.getElementById('loginBtn').addEventListener('click', login);
   document.getElementById('checkInBtn').addEventListener('click', doCheckIn);
 </script>
-
 </body>
 </html>
