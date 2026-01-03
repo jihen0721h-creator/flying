@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>起飞打卡企划 · 全功能版</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root { --primary: #007bff; --bg: #f4f7f6; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 20px; color: #333; }
+
+/* 已达成的成就：金色边框，亮色背景 */
+.achievement-item.unlocked {
+  background: #fffde7;
+  border: 2px solid #ffd700;
+  opacity: 1;
+}
+
+/* 未达成的成就：灰色背景，半透明 */
+.achievement-item.locked {
+  background: #f5f5f5;
+  border: 2px dashed #ccc;
+  opacity: 0.7;
+  color: #888;
+}
+
+/* 进度条文字 */
+.progress-text {
+  font-size: 11px;
+  color: #ff9800;
+  font-weight: bold;
+}
+
+    .container { max-width: 500px; margin: 0 auto; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    h1, h2, h3 { margin-top: 0; text-align: center; }
+    input, select, button { width: 100%; padding: 12px; margin-top: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+    button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    button:hover { background: #0056b3; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    
+    .nav { display: flex; gap: 10px; margin-bottom: 20px; }
+    .nav button { flex: 1; background: #eee; color: #666; font-size: 14px; }
+    .nav button.active { background: var(--primary); color: white; }
+
+    .achievement-item { display: flex; align-items: center; background: #fffde7; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #fff9c4; }
+    .rank-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; }
+    .announcement { background: #e8f5e9; padding: 15px; border-radius: 8px; font-size: 14px; border-left: 4px solid #4caf50; }
+    .hidden { display: none !important; }
+    .tag { font-size: 12px; background: #eee; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <!-- 登录框 -->
+  <div id="loginSection" class="card">
+    <h1>🚀 起飞打卡</h1>
+    <input id="nickname" placeholder="输入昵称" />
+    <input id="qq" placeholder="输入QQ号 (唯一凭证)" />
+    <button id="loginBtn">进入企划</button>
+    <p style="font-size: 12px; color: #999; text-align: center; margin-top: 10px;">第一次输入将自动创建账号</p>
+  </div>
+
+  <!-- 主界面 (登录后显示) -->
+  <div id="mainSection" class="hidden">
+    <div id="annoBox" class="card announcement">正在加载公告...</div>
+
+    <div class="nav">
+      <button onclick="showPage('checkin')" id="nav-checkin" class="active">打卡</button>
+      <button onclick="showPage('rank')" id="nav-rank">排行榜</button>
+      <button onclick="showPage('me')" id="nav-me">成就</button>
+    </div>
+
+    <!-- 打卡页 -->
+    <div id="page-checkin" class="page card">
+      <h2>欢迎, <span id="displayNickname"></span></h2>
+      <select id="categorySelect">
+        <option value="真人">真人素材 🎬</option>
+        <option value="本子">纸质本子 📖</option>
+        <option value="视频">短视频 📱</option>
+        <option value="其他">其他类别 💡</option>
+      </select>
+      <button id="checkInBtn">立即打卡 🚀</button>
+    </div>
+
+    <!-- 排行榜页 -->
+    <div id="page-rank" class="page card hidden">
+      <h2>排行榜 (前10)</h2>
+      <div id="rankList">加载中...</div>
+    </div>
+
+    <!-- 成就页 -->
+    <div id="page-me" class="page card hidden">
+      <h2>我的成就</h2>
+      <div id="achievementsBox">暂无成就</div>
+      <button onclick="logout()" style="background:#ff5252; margin-top:30px;">退出登录</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 1. 初始化 (变量名改为 supabaseClient 避免冲突)
+  const SUPABASE_URL = 'https://bunogkfayqafxghedrdt.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_9zBGizofsJmjERXnN68epQ_L-cGXu2F';
+  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let currentUser = null;
+
+  // 2. 登录逻辑
+  async function login() {
+    const nickname = document.getElementById('nickname').value.trim();
+    const qq = document.getElementById('qq').value.trim();
+    const btn = document.getElementById('loginBtn');
+
+    if (!nickname || !qq) return alert('请完整填写昵称和QQ号');
+
+    btn.disabled = true;
+    btn.innerText = '正在连接...';
+
+    try {
+      // 查找用户
+      let { data: user, error: fetchError } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('qq', qq)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      if (!user) {
+        // 注册
+        const { data: newUser, error: insError } = await supabaseClient
+          .from('users')
+          .insert([{ nickname, qq }])
+          .select()
+          .single();
+        if (insError) throw insError;
+        user = newUser;
+      }
+
+      currentUser = user;
+      localStorage.setItem('qifei_user', JSON.stringify(user));
+      initApp();
+    } catch (err) {
+      console.error(err);
+      alert('无法进入: ' + (err.message || '网络连接失败'));
+    } finally {
+      btn.disabled = false;
+      btn.innerText = '进入企划';
+    }
+  }
+
+  // 3. 初始化应用界面
+  function initApp() {
+    document.getElementById('loginSection').classList.add('hidden');
+    document.getElementById('mainSection').classList.remove('hidden');
+    document.getElementById('displayNickname').innerText = currentUser.nickname;
+    loadAllData();
+  }
+
+  // 4. 加载数据
+  async function loadAllData() {
+    if (!currentUser) return;
+
+    // 加载公告
+    const { data: annos } = await supabaseClient.from('announcements').select('content').eq('is_active', true).limit(1);
+    document.getElementById('annoBox').innerText = annos?.[0]?.content || "欢迎来到起飞打卡企划！";
+
+    // 加载排行 (已修复排序逻辑)
+    const { data: ranks, error: rankError } = await supabaseClient
+      .from('user_stats')
+      .select('*')
+      .order('total_count', { ascending: false }) // 这里的代码让次数多的排在前面
+      .limit(10);
+
+    if (rankError) {
+      console.error('排行加载失败:', rankError);
+    } else if (ranks) {
+      document.getElementById('rankList').innerHTML = ranks.map((u, i) => `
+        <div class="rank-item">
+          <span>${i+1}. ${u.nickname}</span>
+          <strong>${u.total_count}次</strong>
+        </div>
+      `).join('');
+    }
+
+    // --- 修改后的成就加载逻辑 ---
+    
+    // 1. 获取当前用户的最新统计数据（为了显示进度，比如 3/5）
+    const { data: userStat } = await supabaseClient
+      .from('user_stats')
+      .select('total_count')
+      .eq('id', currentUser.id)
+      .single();
+    const myCount = userStat?.total_count || 0;
+
+    // 2. 获取所有定义的成就（按门槛从低到高排）
+    const { data: allAchievements } = await supabaseClient
+      .from('achievements')
+      .select('*')
+      .order('threshold', { ascending: true });
+
+    // 3. 获取用户已经获得的成就 ID 列表
+    const { data: myEarned } = await supabaseClient
+      .from('user_achievements')
+      .select('achievement_id')
+      .eq('user_id', currentUser.id);
+    
+    const earnedIds = myEarned ? myEarned.map(item => item.achievement_id) : [];
+
+    // 4. 渲染成就墙
+    if (allAchievements) {
+      document.getElementById('achievementsBox').innerHTML = allAchievements.map(ach => {
+        const isUnlocked = earnedIds.includes(ach.id);
+        const statusClass = isUnlocked ? 'unlocked' : 'locked';
+        const icon = isUnlocked ? '🏆' : '🔒';
+        
+        // 计算进度百分比 (最高 100%)
+        const progress = Math.min(Math.floor((myCount / ach.threshold) * 100), 100);
+        
+        return `
+          <div class="achievement-item ${statusClass}">
+            <div style="font-size: 24px; margin-right: 15px;">${icon}</div>
+            <div style="flex: 1;">
+              <strong>${ach.title}</strong> 
+              ${!isUnlocked ? `<span class="progress-text">(${myCount}/${ach.threshold})</span>` : ''}
+              <br>
+              <small>${ach.description}</small>
+              ${!isUnlocked ? `
+                <div style="width:100%; background:#ddd; height:4px; margin-top:5px; border-radius:2px;">
+                  <div style="width:${progress}%; background:#ff9800; height:100%; border-radius:2px;"></div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // 5. 打卡逻辑
+  async function doCheckIn() {
+    const category = document.getElementById('categorySelect').value;
+    const btn = document.getElementById('checkInBtn');
+    
+    btn.disabled = true;
+    try {
+      const { error } = await supabaseClient.from('records').insert([
+        { user_id: currentUser.id, category: category }
+      ]);
+      if (error) {
+        if (error.code === '23505') alert('今天这个类别你已经打过卡啦！');
+        else throw error;
+      } else {
+        alert('打卡成功！');
+        loadAllData();
+      }
+    } catch (err) {
+      alert('错误: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // 页面切换
+  function showPage(pageId) {
+    document.querySelectorAll('.page').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + pageId).classList.remove('hidden');
+    document.getElementById('nav-' + pageId).classList.add('active');
+  }
+
+  function logout() {
+    localStorage.clear();
+    location.reload();
+  }
+
+  // 自动登录
+  const savedUser = localStorage.getItem('qifei_user');
+  if (savedUser) {
+    currentUser = JSON.parse(savedUser);
+    initApp();
+  }
+
+  document.getElementById('loginBtn').addEventListener('click', login);
+  document.getElementById('checkInBtn').addEventListener('click', doCheckIn);
+</script>
+
+</body>
+</html>
