@@ -83,7 +83,7 @@
         <span class="active" onclick="changeRankType('Total', this)">总榜单</span>
         <span onclick="changeRankType('真人', this)">三次元榜</span>
         <span onclick="changeRankType('本子', this)">本子榜</span>
-        <span onclick="changeRankType('鬼脑''鬼脑''n'">鬼脑榜</span>
+        <span onclick="changeRankType('鬼脑', this)">鬼脑榜</span>
       </div>
       <div id="rankList"></div>
     </div>
@@ -189,22 +189,18 @@
     const { data: records } = await supabaseClient.from('records').select('*').eq('user_id', uid).order('checkin_date', {ascending: false});
     viewingRecords = records || [];
 
-    // 统计各类别总计
     const cats = {};
     viewingRecords.forEach(r => cats[r.category] = (cats[r.category] || 0) + 1);
     document.getElementById('profTotalCount').innerText = viewingRecords.length;
     document.getElementById('profCatBreakdown').innerHTML = Object.entries(cats).map(([k,v]) => `${k}: ${v}`).join(' | ');
 
-    // 提取所有月份
     const monthSet = new Set(viewingRecords.map(r => r.checkin_date.slice(0, 7)));
     const months = Array.from(monthSet).sort().reverse();
 
-    // 渲染月份选择器
     document.getElementById('monthPicker').innerHTML = months.map(m => `
       <div class="month-chip" id="chip-${m}" onclick="renderMonthView('${m}', '${uid}')">${m.replace('-','年')}月</div>
     `).join('');
 
-    // 默认渲染最新月份
     if(months.length) renderMonthView(months[0], uid);
   }
 
@@ -216,7 +212,6 @@
     const monthRecs = viewingRecords.filter(r => r.checkin_date.startsWith(mStr));
     const daySet = new Set(monthRecs.map(r => parseInt(r.checkin_date.slice(8,10))));
     
-    // 渲染日历网格
     const [y, m] = mStr.split('-').map(Number);
     const days = new Date(y, m, 0).getDate();
     let calHtml = '';
@@ -225,7 +220,6 @@
     }
     document.getElementById('calendar').innerHTML = calHtml;
 
-    // 渲染明细
     document.getElementById('detailList').innerHTML = monthRecs.map(r => `
       <div class="record-item">
         <span>${r.checkin_date} [${r.category}]</span>
@@ -234,7 +228,7 @@
     `).join('');
   }
 
-  // 4. 打卡与删除
+  // 4. 打卡逻辑
   async function doCheckIn() {
     const c = document.getElementById('categorySelect').value;
     const d = document.getElementById('checkInDate').value;
@@ -249,21 +243,37 @@
     if(!error) { e.target.closest('.record-item').remove(); loadAllData(); loadRank(); }
   }
 
-  // 其他基础功能
-  function showPage(p) {
-    document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
-    document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
-    document.getElementById('page-'+p).classList.remove('hidden');
-    if(document.getElementById('nav-'+p)) document.getElementById('nav-'+p).classList.add('active');
+  // 5. 【新增】管理员加载用户列表函数 (补全此处)
+  async function loadAdminUserList() {
+    const { data: users, error } = await supabaseClient
+      .from('users')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) return alert('加载失败: ' + error.message);
+
+    document.getElementById('adminUserList').innerHTML = '<h3>用户管理</h3>' + users.map(u => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee;">
+        <div>
+          <strong>${u.nickname}</strong><br>
+          <small style="color:#666;">账号: ${u.username}</small>
+        </div>
+        <div>
+          ${u.role !== 'admin' ? 
+            `<button onclick="deleteUser('${u.id}', '${u.nickname}', event)" style="width:auto; background:#ff4d4f; padding:5px 10px; font-size:12px; margin:0; color:white; border:none; border-radius:4px;">删除</button>` 
+            : '<span style="font-size:12px; color:#999;">管理员</span>'}
+        </div>
+      </div>
+    `).join('');
   }
 
+  // 6. 管理员删除用户
   async function deleteUser(uid, uname, event) {
     if(!confirm(`确定要彻底删除用户 [${uname}] 吗？`)) return;
   
     const btn = event.target;
-    const row = btn.closest('div'); // 找到用户这一行的 HTML 容器
+    const row = btn.closest('div').parentElement; // 适配上面生成的 HTML 结构
     
-    // 交互优化：立刻变灰，防止重复点击
     btn.disabled = true;
     btn.innerText = '正在移除...';
   
@@ -274,15 +284,14 @@
       btn.disabled = false;
       btn.innerText = '删除';
     } else {
-      // 成功后，该行直接从视觉上消失，不需要等刷新
       row.style.transition = 'all 0.4s ease';
       row.style.opacity = '0';
       row.style.transform = 'translateX(30px)';
-      setTimeout(() => {
-        row.remove();
-      }, 400);
+      setTimeout(() => { row.remove(); }, 400);
     }
   }
+
+  // 7. 加载公告与成就
   async function loadAllData() {
     if(!currentUser) return;
     const { data: annos } = await supabaseClient.from('announcements').select('content').limit(1);
@@ -299,6 +308,17 @@
         <span style="font-size:20px; margin-right:10px;">${eIds.includes(a.id)?'🏆':'🔒'}</span>
         <div><strong>${a.title}</strong><br><small>${a.description} (${count}/${a.threshold})</small></div>
       </div>`).join('');
+  }
+
+  // 8. 页面切换逻辑
+  function showPage(p) {
+    document.querySelectorAll('.page').forEach(x => x.classList.add('hidden'));
+    document.querySelectorAll('.nav button').forEach(x => x.classList.remove('active'));
+    document.getElementById('page-'+p).classList.remove('hidden');
+    if(document.getElementById('nav-'+p)) document.getElementById('nav-'+p).classList.add('active');
+    
+    // 如果是切换到管理页，触发加载
+    if(p === 'admin') loadAdminUserList();
   }
 
   function logout() { localStorage.clear(); location.reload(); }
